@@ -1,0 +1,28 @@
+name: 'Setup Node.js'
+description: 'Setup Node.js and install dependencies'
+
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '18'
+    type: string
+  cache:
+    description: 'Whether to cache npm dependencies'
+    required: false
+    default: 'npm'
+    type: string
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache }}
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '18'
+        type: string
+      playwright-base-url:
+        description: 'Base URL for Playwright tests (optional)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  ci:
+    name: Lint, Test, and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs.node-version || '18' }}
+
+      - name: Check (lint and build)
+        uses: ./.github/actions/check
+
+      - name: Run E2E tests
+        if: ${{ inputs.playwright-base-url != '' && inputs.playwright-base-url != null }}
+        uses: ./.github/actions/e2e-tests
+        with:
+          base-url: ${{ inputs.playwright-base-url || 'http://localhost:3000' }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 1
+

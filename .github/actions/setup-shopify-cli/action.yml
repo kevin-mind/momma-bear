@@ -1,0 +1,42 @@
+name: 'Setup Shopify CLI'
+description: 'Authenticate and setup Shopify CLI for deployment'
+
+inputs:
+  auth-token:
+    description: 'Shopify CLI authentication token'
+    required: true
+    type: string
+  store-url:
+    description: 'Shopify store URL (optional, if needed for authentication)'
+    required: false
+    type: string
+  access-token:
+    description: 'Shopify store access token (optional, if needed for authentication)'
+    required: false
+    type: string
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate with Shopify CLI
+      shell: bash
+      env:
+        SHOPIFY_CLI_AUTH_TOKEN: ${{ inputs.auth-token }}
+        SHOPIFY_STORE_URL: ${{ inputs.store-url }}
+        SHOPIFY_ACCESS_TOKEN: ${{ inputs.access-token }}
+      run: |
+        if [ -n "$SHOPIFY_CLI_AUTH_TOKEN" ]; then
+          echo "Authenticating with Shopify CLI using token"
+          # Shopify CLI authentication using token
+          # The exact command may vary based on Shopify CLI version
+          # This is a placeholder - adjust based on actual Shopify CLI auth method
+          export SHOPIFY_CLI_AUTH_TOKEN="$SHOPIFY_CLI_AUTH_TOKEN"
+        fi
+        
+        if [ -n "$SHOPIFY_STORE_URL" ] && [ -n "$SHOPIFY_ACCESS_TOKEN" ]; then
+          echo "Using store credentials for authentication"
+          export SHOPIFY_STORE_URL="$SHOPIFY_STORE_URL"
+          export SHOPIFY_ACCESS_TOKEN="$SHOPIFY_ACCESS_TOKEN"
+        fi
+
+

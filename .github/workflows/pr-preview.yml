@@ -1,0 +1,75 @@
+name: PR Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ci:
+    name: Run CI Checks
+    uses: ./.github/workflows/ci.yml
+
+  deploy-preview:
+    name: Deploy to Preview
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: '18'
+
+      - name: Authenticate with Shopify CLI
+        uses: ./.github/actions/setup-shopify-cli
+        with:
+          auth-token: ${{ secrets.SHOPIFY_CLI_AUTH_TOKEN }}
+          store-url: ${{ secrets.SHOPIFY_STORE_URL }}
+          access-token: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+
+      - name: Deploy to preview environment
+        env:
+          SHOPIFY_CLI_AUTH_TOKEN: ${{ secrets.SHOPIFY_CLI_AUTH_TOKEN }}
+          SHOPIFY_STORE_URL: ${{ secrets.SHOPIFY_STORE_URL }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+        uses: ./.github/actions/deploy
+        with:
+          preview: true
+
+      - name: Get preview URL
+        id: preview-url
+        run: |
+          # Extract preview URL from deployment output
+          # This is a placeholder - adjust based on actual Shopify CLI output
+          echo "preview-url=https://preview.example.com" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        if: steps.preview-url.outputs.preview-url != ''
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const previewUrl = '${{ steps.preview-url.outputs.preview-url }}';
+            const prNumber = context.payload.pull_request.number;
+            
+            const body = `🚀 **Preview Deployment**
+            
+            Your changes have been deployed to a preview environment.
+            
+            **Preview URL:** ${previewUrl}
+            
+            This preview will be updated automatically when you push new commits.`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+
+

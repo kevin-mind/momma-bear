@@ -1,0 +1,14 @@
+name: 'Check'
+description: 'Run linter and build'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run linter
+      shell: bash
+      run: npm run lint
+
+    - name: Build application
+      shell: bash
+      run: npm run build
+

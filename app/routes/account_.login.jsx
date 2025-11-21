@@ -1,7 +1,7 @@
 /**
  * @param {Route.LoaderArgs}
  */
-export async function loader({request, context}) {
+export async function loader({context}) {
   return context.customerAccount.login({
     countryCode: context.storefront.i18n.country,
   });

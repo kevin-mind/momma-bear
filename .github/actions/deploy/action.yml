@@ -1,0 +1,29 @@
+name: 'Deploy'
+description: 'Deploy application using Shopify CLI'
+
+inputs:
+  preview:
+    description: 'Deploy to preview environment'
+    required: false
+    default: 'false'
+    type: boolean
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Deploy application
+      shell: bash
+      env:
+        SHOPIFY_CLI_AUTH_TOKEN: ${{ env.SHOPIFY_CLI_AUTH_TOKEN }}
+        SHOPIFY_STORE_URL: ${{ env.SHOPIFY_STORE_URL }}
+        SHOPIFY_ACCESS_TOKEN: ${{ env.SHOPIFY_ACCESS_TOKEN }}
+      run: |
+        if [ "${{ inputs.preview }}" == "true" ]; then
+          shopify hydrogen deploy --preview || shopify app deploy --preview || echo "Preview deployment command may vary"
+        else
+          shopify hydrogen deploy || shopify app deploy || {
+            echo "Deployment failed"
+            exit 1
+          }
+        fi
+

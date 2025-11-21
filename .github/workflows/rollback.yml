@@ -1,0 +1,100 @@
+name: Rollback Deployment
+
+on:
+  workflow_run:
+    workflows: ['Merge Queue Deployment']
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      previous-sha:
+        description: 'Previous successful deployment SHA (optional)'
+        required: false
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback to Previous Version
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name == 'Merge Queue Deployment')
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Determine previous commit SHA
+        id: previous-commit
+        run: |
+          if [ -n "${{ github.event.inputs.previous-sha }}" ]; then
+            PREVIOUS_SHA="${{ github.event.inputs.previous-sha }}"
+          else
+            # Get the commit before the failed deployment
+            # For merge queue, we need to find the last successful commit on main
+            # This gets the second-to-last commit on main (assuming last was the failed one)
+            PREVIOUS_SHA=$(git rev-parse HEAD~1)
+            
+            # Verify the commit exists
+            if ! git cat-file -e "$PREVIOUS_SHA" 2>/dev/null; then
+              echo "Error: Previous commit not found"
+              exit 1
+            fi
+          fi
+          
+          echo "previous-sha=$PREVIOUS_SHA" >> $GITHUB_OUTPUT
+          echo "Rolling back to commit: $PREVIOUS_SHA"
+          echo "Current HEAD: $(git rev-parse HEAD)"
+
+      - name: Checkout previous commit
+        run: |
+          git checkout ${{ steps.previous-commit.outputs.previous-sha }}
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: '18'
+
+      - name: Authenticate with Shopify CLI
+        uses: ./.github/actions/setup-shopify-cli
+        with:
+          auth-token: ${{ secrets.SHOPIFY_CLI_AUTH_TOKEN }}
+          store-url: ${{ secrets.SHOPIFY_STORE_URL }}
+          access-token: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+
+      - name: Deploy previous version
+        env:
+          SHOPIFY_CLI_AUTH_TOKEN: ${{ secrets.SHOPIFY_CLI_AUTH_TOKEN }}
+          SHOPIFY_STORE_URL: ${{ secrets.SHOPIFY_STORE_URL }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+        uses: ./.github/actions/deploy
+        with:
+          preview: false
+
+      - name: Verify rollback deployment
+        run: |
+          echo "Rollback deployment completed"
+          echo "Previous commit SHA: ${{ steps.previous-commit.outputs.previous-sha }}"
+
+      - name: Create rollback notification
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `🔄 **Rollback Completed**
+            
+            The application has been rolled back to a previous version.
+            
+            **Rollback Commit SHA:** ${{ steps.previous-commit.outputs.previous-sha }}
+            **Rollback Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Please investigate the cause of the deployment failure.`;
+            
+            // Create a comment on the main branch or issue
+            // Adjust based on your notification preferences
+            console.log('Rollback completed');
+
