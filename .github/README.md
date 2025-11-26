@@ -28,7 +28,7 @@ runs:
   using: 'composite'
   steps:
     - uses: ./.github/actions/setup-node  # Don't do this!
-    - run: npm run lint
+    - run: pnpm run lint
 ```
 
 ### 3. Workflows Compose Actions
@@ -47,7 +47,7 @@ Sets up Node.js and installs dependencies.
 
 **Inputs:**
 - `node-version` (optional, default: `'18'`)
-- `cache` (optional, default: `'npm'`)
+- `cache` (optional, default: `'pnpm'`)
 
 **Usage:**
 ```yaml
@@ -58,24 +58,26 @@ Sets up Node.js and installs dependencies.
 ```
 
 **What it does:**
+- Enables Corepack and prepares pnpm
 - Configures Node.js using `actions/setup-node@v4`
-- Runs `npm ci` to install dependencies
+- Runs `pnpm install --frozen-lockfile` to install dependencies
 
 ### `check`
 
-Runs code quality checks and builds the application.
+Runs code quality checks, type checking, and builds the application.
 
 **Inputs:** None
 
 **Usage:**
 ```yaml
-- name: Check (lint and build)
+- name: Check (lint, typecheck, and build)
   uses: ./.github/actions/check
 ```
 
 **What it does:**
-- Runs `npm run lint`
-- Runs `npm run build`
+- Runs `pnpm run lint`
+- Runs `pnpm run typecheck`
+- Runs `pnpm run build`
 
 ### `e2e-tests`
 
@@ -93,8 +95,8 @@ Runs Playwright end-to-end tests.
 ```
 
 **What it does:**
-- Installs Playwright browsers (`npx playwright install --with-deps`)
-- Runs E2E tests (`npm run test`)
+- Installs Playwright browsers (`pnpm exec playwright install --with-deps`)
+- Runs E2E tests (`pnpm run test`)
 - Uses `PLAYWRIGHT_BASE_URL` environment variable
 
 ### `setup-shopify-cli`
@@ -125,12 +127,13 @@ Authenticates and configures Shopify CLI for deployment.
 Deploys the application using Shopify CLI.
 
 **Inputs:**
-- `preview` (optional, default: `false`, type: boolean): Deploy to preview environment
+- `token` (required): Shopify Hydrogen deployment token
 
 **Environment Variables Required:**
 - `SHOPIFY_CLI_AUTH_TOKEN`
 - `SHOPIFY_STORE_URL`
 - `SHOPIFY_ACCESS_TOKEN`
+- `SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN` (set from `token` input)
 
 **Usage:**
 ```yaml
@@ -141,19 +144,19 @@ Deploys the application using Shopify CLI.
     SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
   uses: ./.github/actions/deploy
   with:
-    preview: false
+    token: ${{ secrets.SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN }}
 ```
 
 **What it does:**
-- Deploys to production: `shopify hydrogen deploy` or `shopify app deploy`
-- Deploys to preview: `shopify hydrogen deploy --preview` or `shopify app deploy --preview`
-- Exits with error code on production deployment failure
+- Deploys to production: `pnpm exec shopify hydrogen deploy`
+- Sets `SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN` environment variable from the input
+- Note: Preview deployments are handled automatically by Oxygen
 
 ## Workflows
 
 ### CI (`ci.yml`)
 
-Reusable workflow that runs linting, tests, and builds. Can be called by other workflows.
+Reusable workflow that runs linting, type checking, tests, and builds. Can be called by other workflows.
 
 **Triggers:**
 - Called by other workflows via `workflow_call`
@@ -163,7 +166,7 @@ Reusable workflow that runs linting, tests, and builds. Can be called by other w
 - `playwright-base-url` (optional): Base URL for Playwright tests
 
 **Jobs:**
-- `ci`: Runs lint, test (if base URL provided), and build
+- `ci`: Runs lint, typecheck, test (if base URL provided), and build
 
 **Pattern:**
 ```yaml
@@ -176,7 +179,7 @@ steps:
     with:
       node-version: '18'
 
-  - name: Check (lint and build)
+  - name: Check (lint, typecheck, and build)
     uses: ./.github/actions/check
 
   - name: Run E2E tests
@@ -186,16 +189,15 @@ steps:
       base-url: ${{ inputs.playwright-base-url }}
 ```
 
-### PR Preview Deployment (`pr-preview.yml`)
+### Deploy PR (`deploy-pr.yml`)
 
-Deploys pull requests to a preview environment after CI passes.
+Deploys to Oxygen on every push to any branch.
 
 **Triggers:**
-- Pull request events (opened, synchronize, reopened)
+- Push events to any branch
 
 **Jobs:**
-- `ci`: Runs CI checks
-- `deploy-preview`: Deploys to preview and comments PR with URL
+- `deploy`: Deploys to Oxygen using Shopify CLI
 
 **Pattern:**
 ```yaml
@@ -206,10 +208,10 @@ steps:
   - name: Authenticate with Shopify CLI
     uses: ./.github/actions/setup-shopify-cli
 
-  - name: Deploy to preview environment
+  - name: Deploy to Oxygen
     uses: ./.github/actions/deploy
     with:
-      preview: true
+      token: ${{ secrets.SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN }}
 ```
 
 ### Merge Queue Deployment (`merge-queue.yml`)
@@ -234,8 +236,6 @@ steps:
 
   - name: Deploy to production
     uses: ./.github/actions/deploy
-    with:
-      preview: false
 
   - name: Run E2E tests against production
     uses: ./.github/actions/e2e-tests
@@ -259,6 +259,7 @@ Rolls back to a previous deployment version.
 Configure these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
 
 - `SHOPIFY_CLI_AUTH_TOKEN`: Shopify CLI authentication token
+- `SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN`: Shopify Hydrogen deployment token
 - `SHOPIFY_STORE_URL`: (Optional) Your Shopify store URL
 - `SHOPIFY_ACCESS_TOKEN`: (Optional) Shopify store access token
 - `PRODUCTION_URL`: (Optional) Production deployment URL for E2E tests
@@ -279,10 +280,10 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 3. **Adjust Shopify CLI Commands:**
    - Review the deployment commands in the `deploy` action
    - Update them based on your Shopify CLI version and deployment method
-   - Common commands:
-     - `shopify hydrogen deploy` (for Hydrogen apps)
-     - `shopify app deploy` (for Shopify apps)
-     - `shopify hydrogen deploy --preview` (for preview deployments)
+   - Common commands (using pnpm):
+     - `pnpm exec shopify hydrogen deploy` (for Hydrogen apps)
+     - `pnpm exec shopify app deploy` (for Shopify apps)
+     - Note: Preview deployments are handled automatically by Oxygen
 
 4. **Configure Production URL:**
    - Set the `PRODUCTION_URL` secret if your deployment doesn't output a URL
@@ -335,7 +336,7 @@ runs:
 
 - The merge queue workflow will automatically prevent merging if any step fails
 - Rollback is triggered automatically when merge queue deployment fails
-- Preview deployments are only created for PRs from the same repository (not forks)
+- Preview deployments are handled automatically by Oxygen
 - All workflows use Node.js 18+ as specified in `package.json`
 - Workflows should be organized by purpose:
   - **CI workflows**: Run checks and tests
