@@ -10,3 +10,4 @@ node_modules
 app/routes/+types
 playwright-report
 test-results
+h2_deploy_log.json
