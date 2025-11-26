@@ -73,7 +73,7 @@ jobs:
           SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
         uses: ./.github/actions/deploy
         with:
-          preview: false
+          token: ${{ secrets.SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN }}
 
       - name: Verify rollback deployment
         run: |

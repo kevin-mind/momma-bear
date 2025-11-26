@@ -7,5 +7,6 @@ node_modules
 .env
 .shopify
 .react-router
+app/routes/+types
 playwright-report
 test-results

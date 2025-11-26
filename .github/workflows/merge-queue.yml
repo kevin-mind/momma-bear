@@ -41,7 +41,7 @@ jobs:
           SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
         uses: ./.github/actions/deploy
         with:
-          preview: false
+          token: ${{ secrets.SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN }}
 
       - name: Get production URL
         id: production-url

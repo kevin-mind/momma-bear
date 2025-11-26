@@ -1,5 +1,5 @@
 name: 'Setup Node.js'
-description: 'Setup Node.js and install dependencies'
+description: 'Setup Node.js and install dependencies with pnpm'
 
 inputs:
   node-version:
@@ -8,14 +8,18 @@ inputs:
     default: '18'
     type: string
   cache:
-    description: 'Whether to cache npm dependencies'
+    description: 'Whether to cache pnpm dependencies'
     required: false
-    default: 'npm'
+    default: 'pnpm'
     type: string
 
 runs:
   using: 'composite'
   steps:
+    - name: Install pnpm
+      shell: bash
+      run: corepack enable && corepack prepare pnpm@latest --activate
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
@@ -24,5 +28,5 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 

@@ -2,11 +2,10 @@ name: 'Deploy'
 description: 'Deploy application using Shopify CLI'
 
 inputs:
-  preview:
-    description: 'Deploy to preview environment'
-    required: false
-    default: 'false'
-    type: boolean
+  token:
+    description: 'Shopify Hydrogen deployment token'
+    required: true
+    type: string
 
 runs:
   using: 'composite'
@@ -14,16 +13,6 @@ runs:
     - name: Deploy application
       shell: bash
       env:
-        SHOPIFY_CLI_AUTH_TOKEN: ${{ env.SHOPIFY_CLI_AUTH_TOKEN }}
-        SHOPIFY_STORE_URL: ${{ env.SHOPIFY_STORE_URL }}
-        SHOPIFY_ACCESS_TOKEN: ${{ env.SHOPIFY_ACCESS_TOKEN }}
-      run: |
-        if [ "${{ inputs.preview }}" == "true" ]; then
-          shopify hydrogen deploy --preview || shopify app deploy --preview || echo "Preview deployment command may vary"
-        else
-          shopify hydrogen deploy || shopify app deploy || {
-            echo "Deployment failed"
-            exit 1
-          }
-        fi
+        SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN: ${{ inputs.token }}
+      run: pnpm exec shopify hydrogen deploy
 
