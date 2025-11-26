@@ -9,6 +9,10 @@ import {defineConfig, devices} from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const authBypassToken = process.env.PLAYWRIGHT_AUTH_BYPASS_TOKEN?.trim();
+
+console.log('authBypassToken', authBypassToken);
+
 export default defineConfig({
   testDir: './tests/e2e',
   /* Run tests in files in parallel */
@@ -31,6 +35,12 @@ export default defineConfig({
     trace: 'on-first-retry',
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
+    /* Add auth bypass header if token exists and is valid */
+    ...(authBypassToken && {
+      extraHTTPHeaders: {
+        'oxygen-auth-bypass-token': authBypassToken,
+      },
+    }),
   },
 
   /* Configure projects for major browsers */
@@ -52,12 +62,14 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000, // 2 minutes for Hydrogen to start
-  },
+  webServer: process.env.PLAYWRIGHT_BASE_URL && !process.env.PLAYWRIGHT_BASE_URL.includes('localhost')
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://localhost:3000',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000, // 2 minutes for Hydrogen to start
+      },
 });
 
 

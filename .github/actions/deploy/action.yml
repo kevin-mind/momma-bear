@@ -7,12 +7,39 @@ inputs:
     required: true
     type: string
 
+outputs:
+  url:
+    description: 'Deployment URL from h2_deploy_log.json'
+    value: ${{ steps.deploy.outputs.url }}
+  auth-bypass-token:
+    description: 'Auth bypass token from h2_deploy_log.json'
+    value: ${{ steps.deploy.outputs.auth-bypass-token }}
+
 runs:
   using: 'composite'
   steps:
     - name: Deploy application
+      id: deploy
       shell: bash
       env:
         SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN: ${{ inputs.token }}
-      run: pnpm exec shopify hydrogen deploy
+      run: |
+        pnpm exec shopify hydrogen deploy --auth-bypass-token
+        
+        if [ -f h2_deploy_log.json ]; then
+          export DEPLOYMENT_URL=$(jq -r '.url' h2_deploy_log.json)
+          echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          echo "Deployment URL: $DEPLOYMENT_URL"
+          
+          export AUTH_BYPASS_TOKEN=$(jq -r '.authBypassToken // empty' h2_deploy_log.json | tr -d '\n\r' | xargs)
+          if [ -n "$AUTH_BYPASS_TOKEN" ] && [ "$AUTH_BYPASS_TOKEN" != "null" ] && [ "$AUTH_BYPASS_TOKEN" != "" ]; then
+            echo "auth-bypass-token=$AUTH_BYPASS_TOKEN" >> $GITHUB_OUTPUT
+            echo "Auth bypass token extracted"
+          else
+            echo "No auth bypass token found in deployment log"
+          fi
+        else
+          echo "Warning: h2_deploy_log.json not found"
+          exit 1
+        fi
 

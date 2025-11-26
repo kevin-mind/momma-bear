@@ -1,22 +1,38 @@
 name: CI
 
 on:
-  push:
-  workflow_call:
-    inputs:
-      node-version:
-        description: 'Node.js version to use'
-        required: false
-        default: '18'
-        type: string
-      playwright-base-url:
-        description: 'Base URL for Playwright tests (optional)'
-        required: false
-        default: ''
-        type: string
+  merge_group:
+    types: [checks_requested]
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
 
 jobs:
-  ci:
+  context:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-context.outputs.environment }}
+      node-version: 18
+    steps:
+      - id: set-context
+        env:
+          event_name: ${{ github.event_name }}
+        run: |
+          if [ "$event_name" == "merge_group" ]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=preview" >> $GITHUB_OUTPUT
+          fi
+
+  check:
+    needs: context
     name: Lint, Test, and Build
     runs-on: ubuntu-latest
     steps:
@@ -26,21 +42,66 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
-          node-version: ${{ inputs.node-version || '18' }}
+          node-version: ${{ needs.context.outputs.node-version }}
 
       - name: Check (lint and build)
         uses: ./.github/actions/check
 
+  deploy:
+    name: Deploy
+    needs: [context, check]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.context.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ needs.context.outputs.node-version }}
+
+      - name: Deploy
+        id: deploy
+        uses: ./.github/actions/deploy
+        with:
+          token: ${{ secrets.SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN }}
+
       - name: Run E2E tests
-        if: ${{ inputs.playwright-base-url != '' && inputs.playwright-base-url != null }}
         uses: ./.github/actions/e2e-tests
         with:
-          base-url: ${{ inputs.playwright-base-url || 'http://localhost:3000' }}
+          base-url: ${{ steps.deploy.outputs.url }}
+          auth-bypass-token: ${{ steps.deploy.outputs.auth-bypass-token }}
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Save deployment info for rollback
+        if: success()
+        run: |
+          echo "${{ github.event.merge_group.head_sha }}" > .deployment-sha
+          echo "${{ steps.deploy.outputs.url }}" > .deployment-url
+
+      - name: Trigger rollback workflow on failure
+        if: failure() && needs.context.outputs.environment == 'production'
+        uses: actions/github-script@v7
         with:
-          name: build-artifacts
-          path: dist/
-          retention-days: 1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // The rollback workflow will be triggered automatically via workflow_run event
+            // when this workflow fails. We'll also create a notification here.
+            
+            const body = `❌ **Deployment Failed**
+            
+            The deployment to production failed during E2E testing.
+            
+            **Commit SHA:** ${{ github.event.merge_group.head_sha }}
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            The rollback workflow should trigger automatically. If not, you can manually trigger it from the Actions tab.`;
+            
+            // Try to create a comment on the main branch (if possible)
+            // Note: This may not work for merge groups, but provides visibility
+            console.log('Deployment failed - rollback workflow should trigger automatically');
+            
+            // Optionally, you could create a GitHub issue or use repository_dispatch
+            // to trigger the rollback workflow more reliably
 

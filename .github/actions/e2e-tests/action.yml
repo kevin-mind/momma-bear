@@ -4,8 +4,11 @@ description: 'Run Playwright E2E tests'
 inputs:
   base-url:
     description: 'Base URL for Playwright tests'
+    required: true
+    type: string
+  auth-bypass-token:
+    description: 'Auth bypass token for Oxygen deployment'
     required: false
-    default: 'http://localhost:3000'
     type: string
 
 runs:
@@ -19,5 +22,6 @@ runs:
       shell: bash
       env:
         PLAYWRIGHT_BASE_URL: ${{ inputs.base-url }}
+        PLAYWRIGHT_AUTH_BYPASS_TOKEN: ${{ inputs.auth-bypass-token }}
       run: pnpm run test
 
