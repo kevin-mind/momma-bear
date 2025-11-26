@@ -5,6 +5,9 @@ on:
     types: [checks_requested]
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
@@ -25,7 +28,7 @@ jobs:
         env:
           event_name: ${{ github.event_name }}
         run: |
-          if [ "$event_name" == "merge_group" ]; then
+          if [ "$event_name" == "push" ]; then
             echo "environment=production" >> $GITHUB_OUTPUT
           else
             echo "environment=preview" >> $GITHUB_OUTPUT
