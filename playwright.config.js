@@ -11,8 +11,6 @@ import {defineConfig, devices} from '@playwright/test';
  */
 const authBypassToken = process.env.PLAYWRIGHT_AUTH_BYPASS_TOKEN?.trim();
 
-console.log('authBypassToken', authBypassToken);
-
 export default defineConfig({
   testDir: './tests/e2e',
   /* Run tests in files in parallel */
